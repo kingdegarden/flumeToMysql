@@ -1,0 +1,169 @@
+原始数据：
+2016-03-10 20:18:28,844 [WARN ] 192.168.27.152 http://192.168.27.154/storage/stockwarn/?reqtype=upload&storepath=/hexin/conf
+  Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+================end
+
+2016-03-10 20:18:30,304 [WARN ] 192.168.27.152 http://192.168.27.154/storage/stockwarn/?reqtype=upload&storepath=/hexin/conf
+  The short-circuit local reads feature cannot be used because libhadoop cannot be loaded.
+================end
+
+
+脚本文件处理
+日志格式
+2016-03-10 20:18:28	192.168.27.152	http://192.168.27.154/storage/stockwarn/?reqtype=upload&storepath=/hexin/conf	Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+
+mysql建表
+表warnlog(temp)  
+id
+datetime  String 
+host      String
+url       String
+info      String
+
+CREATE TABLE warnlog (
+  id int(5) PRIMARY KEY NOT NULL auto_increment,
+  datetime varchar(25)NOT NULL,
+  host varchar(20)NOT NULL,
+  url varchar(200)NOT NULL,
+  info varchar(200)NOT NULL
+);
+----------------------------------------------------------------
+#flume-transport.conf
+agent.sources = source1
+agent.sinks = sink1 
+agent.channels = channel1
+
+# Describe/configure tail -F source1
+agent.sources.source1.type = exec 
+agent.sources.source1.command = tail -n -0 -F /usr/apache-flume-1.5.0-cdh5.1.0-bin/test/text.log
+agent.sources.source1.channels = channel1
+agent.sources.source1.interceptors = i1
+agent.sources.source1.interceptors.i1.type = timestamp
+
+# Describe avro  sink1
+agent.sinks.sink1.channel = channel1
+agent.sinks.sink1.type = avro
+agent.sinks.sink1.hostname = 192.168.27.153
+agent.sinks.sink1.port = 3334
+
+# Use a channel which buffers events in memory
+agent.channels.channel1.type = memory
+agent.channels.channel1.keep-alive = 120
+agent.channels.channel1.capacity = 500000
+agent.channels.channel1.transactionCapacity = 600
+----------------------------------------------------------------
+#flume-mysql.conf
+agent.sources = source1
+agent.sinks = mysqlSink
+agent.channels = channel1
+#source
+agent.sources.source1.channels = channel1
+agent.sources.source1.type = avro
+agent.sources.source1.bind = 0.0.0.0
+agent.sources.source1.port = 3334
+#channel
+agent.channels.channel1.type = SPILLABLEMEMORY
+agent.channels.channel1.memoryCapacity = 100000
+agent.channels.channel1.overflowCapacity = 100000
+agent.channels.channel1.transactionCapacity = 100000
+#agent.channels.channel1.checkpointDir = ../flume-data/checkpoint_c_block_1
+#agent.channels.channel1.dataDirs = ../flume-data/channel_data_c_block_1
+#sink
+agent.sinks.mysqlSink.type = com.cloud.flume.sink.mysql.MysqlSink
+agent.sinks.mysqlSink.hostname=localhost
+agent.sinks.mysqlSink.port=3306
+agent.sinks.mysqlSink.databaseName= loginfo
+agent.sinks.mysqlSink.tableName= warnlog
+agent.sinks.mysqlSink.user=root
+agent.sinks.mysqlSink.password= Mysql@153
+agent.sinks.mysqlSink.batchSize = 1
+agent.sinks.mysqlSink.channel = channel1
+
+
+启动flume agent
+/usr/apache-flume-1.5.0-cdh5.1.0-bin/bin/flume-ng agent -c /usr/apache-flume-1.5.0-cdh5.1.0-bin/conf/ -f /usr/apache-flume-1.5.0-cdh5.1.0-bin/conf/flume-transport.conf -n agent -Dflume.root.logger=DEBUG,console
+/usr/apache-flume-1.5.0-cdh5.1.0-bin/bin/flume-ng agent -c /usr/apache-flume-1.5.0-cdh5.1.0-bin/conf/ -f /usr/apache-flume-1.5.0-cdh5.1.0-bin/conf/flume-mysql.conf -n agent -Dflume.root.logger=DEBUG,console
+
+
+cat data.txt >> text.log
+
+其他数据格式
+
+errorlog
+
+CREATE TABLE errorlog (
+  id int(5) PRIMARY KEY NOT NULL auto_increment,
+  date varchar(30) NOT NULL,
+  msg text NOT NULL
+);
+
+----------------------------------------------------------------
+#flume-transport.conf
+agent.sources = source1
+agent.sinks = sink1 
+agent.channels = channel1
+
+# Describe/configure tail -F source1
+agent.sources.source1.type =  com.cloud.flume.sink.mysql.ErrorExecSource
+agent.sources.source1.command = tail -n -0 -F /usr/apache-flume-1.5.0-cdh5.1.0-bin/test/text.log
+agent.sources.source1.channels = channel1
+agent.sources.source1.interceptors = i1
+agent.sources.source1.interceptors.i1.type = timestamp
+
+# Describe avro  sink1
+agent.sinks.sink1.channel = channel1
+agent.sinks.sink1.type = avro
+agent.sinks.sink1.hostname = 192.168.27.153
+agent.sinks.sink1.port = 3334
+
+# Use a channel which buffers events in memory
+agent.channels.channel1.type = memory
+agent.channels.channel1.keep-alive = 120
+agent.channels.channel1.capacity = 500000
+agent.channels.channel1.transactionCapacity = 600
+----------------------------------------------------------------
+#flume-mysql.conf
+agent.sources = source1
+agent.sinks = mysqlSink
+agent.channels = channel1
+#source
+agent.sources.source1.channels = channel1
+agent.sources.source1.type = avro
+agent.sources.source1.bind = 0.0.0.0
+agent.sources.source1.port = 3334
+#channel
+agent.channels.channel1.type = SPILLABLEMEMORY
+agent.channels.channel1.memoryCapacity = 100000
+agent.channels.channel1.overflowCapacity = 100000
+agent.channels.channel1.transactionCapacity = 100000
+#agent.channels.channel1.checkpointDir = ../flume-data/checkpoint_c_block_1
+#agent.channels.channel1.dataDirs = ../flume-data/channel_data_c_block_1
+#sink
+agent.sinks.mysqlSink.type = com.cloud.flume.sink.mysql.MysqlSinkError
+agent.sinks.mysqlSink.hostname=localhost
+agent.sinks.mysqlSink.port=3306
+agent.sinks.mysqlSink.databaseName= loginfo
+agent.sinks.mysqlSink.tableName= errorlog
+agent.sinks.mysqlSink.user=root
+agent.sinks.mysqlSink.password= Mysql@153
+agent.sinks.mysqlSink.batchSize = 100
+agent.sinks.mysqlSink.channel = channel1
+
+
+
+errordata:
+
+21-Jan-2016 15:59:09.980 INFO [main] org.apache.catalina.startup.Catalina.start Server startup in 8962 ms
+ERROR:  'java.io.IOException: Broken pipe'
+javax.xml.transform.TransformerException: org.xml.sax.SAXException: java.io.IOException: Broken pipe
+org.apache.catalina.connector.ClientAbortException: java.io.IOException: Broken pipe
+ERROR:  'java.io.IOException: Broken pipe'
+
+
+flume 进程意外停止，记录当前文件位置source：
+https://github.com/cwtree/flume-filemonitor-source
+
+
+
+
+
